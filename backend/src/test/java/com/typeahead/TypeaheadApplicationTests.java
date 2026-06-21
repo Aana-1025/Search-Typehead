@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.typeahead.search.SearchRepository;
 import com.typeahead.suggest.SuggestionRepository;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -32,6 +33,9 @@ class TypeaheadApplicationTests {
 
     @MockBean
     private SuggestionRepository suggestionRepository;
+
+    @MockBean
+    private SearchRepository searchRepository;
 
     @Autowired
     private MockMvc mockMvc;
