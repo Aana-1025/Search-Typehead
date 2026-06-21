@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.typeahead.cache.CacheInvalidationService;
 import com.typeahead.dataset.DatasetNormalizer;
 import com.typeahead.dataset.DatasetProperties;
 
@@ -17,10 +18,16 @@ public class SearchService {
 
     private final SearchRepository searchRepository;
     private final DatasetProperties datasetProperties;
+    private final CacheInvalidationService cacheInvalidationService;
 
-    public SearchService(SearchRepository searchRepository, DatasetProperties datasetProperties) {
+    public SearchService(
+        SearchRepository searchRepository,
+        DatasetProperties datasetProperties,
+        CacheInvalidationService cacheInvalidationService
+    ) {
         this.searchRepository = searchRepository;
         this.datasetProperties = datasetProperties;
+        this.cacheInvalidationService = cacheInvalidationService;
     }
 
     @Transactional
@@ -36,6 +43,7 @@ public class SearchService {
 
         StoredSearchQuery updatedQuery = upsertQuery(request.query(), normalizedQuery);
         searchRepository.replacePrefixes(updatedQuery, datasetProperties.prefixMaxLength());
+        cacheInvalidationService.invalidateQueryPrefixes(normalizedQuery, datasetProperties.prefixMaxLength());
 
         return SEARCHED_RESPONSE;
     }

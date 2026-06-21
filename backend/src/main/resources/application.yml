@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8082
 
 spring:
   datasource:
@@ -25,8 +25,15 @@ spring:
     user: typeahead
     password: typeahead
     locations: classpath:db/migration
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
 
 management:
+  health:
+    redis:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -38,3 +45,11 @@ app:
     path: ../data/queries.csv
     batch-size: 1000
     prefix-max-length: 50
+  cache:
+    enabled: true
+    ttl-seconds: 300
+    virtual-nodes: 100
+    logical-nodes:
+      - cache-node-a
+      - cache-node-b
+      - cache-node-c

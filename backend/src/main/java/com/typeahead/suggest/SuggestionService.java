@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
+import com.typeahead.cache.SuggestionCacheService;
 import com.typeahead.dataset.DatasetNormalizer;
 
 @Service
@@ -13,9 +14,14 @@ public class SuggestionService {
     private static final String SOURCE = "postgres";
 
     private final SuggestionRepository suggestionRepository;
+    private final SuggestionCacheService suggestionCacheService;
 
-    public SuggestionService(SuggestionRepository suggestionRepository) {
+    public SuggestionService(
+        SuggestionRepository suggestionRepository,
+        SuggestionCacheService suggestionCacheService
+    ) {
         this.suggestionRepository = suggestionRepository;
+        this.suggestionCacheService = suggestionCacheService;
     }
 
     public SuggestionResponse suggest(String rawPrefix) {
@@ -24,12 +30,13 @@ public class SuggestionService {
             return emptyResponse();
         }
 
-        List<SuggestionItem> suggestions = suggestionRepository.findSuggestions(normalizedPrefix, MAX_SUGGESTIONS);
-        if (suggestions.isEmpty()) {
-            return emptyResponse();
+        SuggestionResponse cachedResponse = suggestionCacheService.getIfPresent(normalizedPrefix);
+        if (cachedResponse != null) {
+            return cachedResponse;
         }
 
-        return new SuggestionResponse(normalizedPrefix, suggestions.size(), suggestions, SOURCE);
+        List<SuggestionItem> suggestions = suggestionRepository.findSuggestions(normalizedPrefix, MAX_SUGGESTIONS);
+        return suggestionCacheService.cacheResponse(normalizedPrefix, suggestions, SOURCE);
     }
 
     private SuggestionResponse emptyResponse() {
