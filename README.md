@@ -1,22 +1,24 @@
 # Search Typeahead System
 
 ## Overview
-This repository contains Milestone 8 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, direct search submission count updates, the React typeahead UI, and Redis-backed suggestion caching with consistent hashing.
+This repository contains Milestone 9 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, the React typeahead UI, Redis-backed suggestion caching with consistent hashing, and an aggregated batch write pipeline for search submissions.
 
 ## Current Milestone
-Milestone 8 focuses on:
+Milestone 9 focuses on:
 - Java 21 + Spring Boot backend
 - React + Vite + Tailwind frontend
-- Docker Compose with PostgreSQL only
+- Docker Compose with PostgreSQL and Redis
 - Flyway-based PostgreSQL schema setup
 - Synthetic dataset generation for realistic search queries
 - Local dataset loading into PostgreSQL
 - `GET /suggest?q=<prefix>` backed by Redis cache with PostgreSQL fallback
-- `POST /search` for direct PostgreSQL count updates, per-query prefix refresh, and targeted cache invalidation
+- `POST /search` for fast enqueue plus eventual batched PostgreSQL updates
 - React UI for typing queries, viewing suggestions, and submitting searches
 - `GET /cache/debug?prefix=<prefix>` for cache routing and hit or miss inspection
+- scheduled aggregation into `search_queries`, `query_prefixes`, `query_activity_buckets`, and `batch_flush_audit`
+- `GET /batch/debug` and `POST /batch/flush` for batch inspection and testing
 
-Redis/cache, Kafka, OpenSearch, batch writes, trending features, and metrics APIs will be added in later milestones.
+Kafka, OpenSearch, trending APIs, and metrics APIs will be added in later milestones.
 
 ## Project Structure
 ```text
@@ -83,7 +85,7 @@ $env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
 ```
 
 ## Suggest API
-Milestone 8 checks Redis before PostgreSQL for each normalized prefix. Cached entries use a TTL of 300 seconds and are routed onto logical cache nodes with consistent hashing.
+Milestone 9 still checks Redis before PostgreSQL for each normalized prefix. Cached entries use a TTL of 300 seconds and are routed onto logical cache nodes with consistent hashing.
 
 Logical cache nodes:
 - `cache-node-a`
@@ -136,7 +138,28 @@ Edge-case behavior:
 - Redis failures are logged and fall back to PostgreSQL instead of failing the request.
 
 ## Search API
-Milestone 8 keeps the direct PostgreSQL-backed search submission flow from Milestone 6. Each valid `POST /search` request updates durable counts in `search_queries`, refreshes `query_prefixes` for the affected query, and then invalidates cached suggestion keys for the query's generated prefixes. Redis invalidation failures are logged and do not fail the search request.
+Milestone 9 changes `POST /search` from an immediate database write into a fast enqueue operation. Each valid request is normalized exactly as before, stored in an in-memory queue, and returns `{"message":"Searched"}` immediately. A scheduled batch writer later drains queued events, aggregates repeated normalized queries, updates PostgreSQL once per unique query, refreshes prefixes, updates hourly activity buckets, records batch audits, and then invalidates affected Redis keys.
+
+Why batching helps:
+- repeated searches for the same normalized query collapse into one database update per flush
+- API requests avoid waiting on PostgreSQL writes
+- Redis invalidation happens once per unique updated query after the batch commit path
+
+Eventual consistency:
+- `/search` returns success after enqueue, not after PostgreSQL commit
+- `/suggest` may show older counts until the next flush completes
+- default flush interval is 5000 ms, so new counts usually appear within a few seconds
+
+Batch settings:
+- `app.batch.enabled=true`
+- `app.batch.flush-interval-ms=5000`
+- `app.batch.max-events=500`
+- `app.batch.max-drain-events=5000`
+
+Current tradeoff:
+- the queue is in-memory and assignment-safe for local development
+- queued searches would be lost if the backend process crashes before a flush
+- a future Kafka milestone is the upgrade path for durable event buffering
 
 Endpoint:
 
@@ -175,6 +198,35 @@ Edge-case behavior:
 - Missing `query` field returns HTTP 400.
 - Empty query returns HTTP 400.
 - Whitespace-only query returns HTTP 400.
+
+## Batch Debug API
+Use the batch debug endpoint to inspect the queue and flush settings.
+
+Examples:
+
+```bash
+curl "http://localhost:8082/batch/debug"
+curl -X POST "http://localhost:8082/batch/flush"
+```
+
+Example debug response:
+
+```json
+{
+  "enabled": true,
+  "queueSize": 0,
+  "flushIntervalMs": 5000,
+  "maxEvents": 500
+}
+```
+
+Manual flush response example:
+
+```json
+{
+  "message": "SUCCESS"
+}
+```
 
 ## Cache Debug API
 Use the cache debug endpoint to inspect routing, keys, and hit or miss status without changing suggestion behavior.
@@ -234,7 +286,6 @@ Run these commands after implementation:
 
 ```bash
 docker compose up -d
-docker compose ps
 cd backend
 .\mvnw.cmd test
 ```
@@ -242,23 +293,45 @@ cd backend
 Then start the backend manually on port `8082` and verify:
 
 1. `curl http://localhost:8082/health`
-2. `curl "http://localhost:8082/cache/debug?prefix=iph"`
-3. `curl "http://localhost:8082/suggest?q=iph"`
-4. `curl "http://localhost:8082/suggest?q=iph"`
-5. Confirm the first request is a PostgreSQL miss or load and the second request returns `"source":"cache"`.
-6. Check Redis for the routed key:
+2. `curl "http://localhost:8082/batch/debug"`
+3. Submit repeated searches for the same new query:
+
+```powershell
+1..10 | ForEach-Object {
+  Invoke-RestMethod `
+    -Method POST `
+    -Uri "http://localhost:8082/search" `
+    -ContentType "application/json" `
+    -Body '{"query":"batch test iphone"}'
+}
+```
+
+4. Wait 6 seconds for the scheduled flush, or call `curl -X POST "http://localhost:8082/batch/flush"`.
+5. Call `curl "http://localhost:8082/suggest?q=batch%20test"` and confirm the suggestion list shows `batch test iphone` with a count around `10`.
+6. Check batch audits:
+
+```bash
+docker compose exec postgres psql -U typeahead -d typeahead -c "SELECT batch_id, raw_event_count, unique_query_count, db_write_count, status FROM batch_flush_audit ORDER BY finished_at DESC LIMIT 5;"
+```
+
+7. Check hourly activity buckets:
+
+```bash
+docker compose exec postgres psql -U typeahead -d typeahead -c "SELECT query_id, bucket_start, bucket_granularity, search_count FROM query_activity_buckets ORDER BY id DESC LIMIT 5;"
+```
+
+8. Verify cache behavior still works for an existing prefix:
+
+```bash
+curl "http://localhost:8082/cache/debug?prefix=iph"
+curl "http://localhost:8082/suggest?q=iph"
+curl "http://localhost:8082/suggest?q=iph"
+```
+
+9. Confirm the first `iph` request is a PostgreSQL miss or load and the second request returns `"source":"cache"`.
+10. Check Redis for the routed key:
 
 ```bash
 docker exec -it typeahead-redis redis-cli KEYS "suggest:*:v1:count:iph"
 docker exec -it typeahead-redis redis-cli TTL "suggest:<ownerNode>:v1:count:iph"
 ```
-
-7. Submit a search:
-
-```bash
-curl -X POST "http://localhost:8082/search" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"iphone"}'
-```
-
-8. Call `curl "http://localhost:8082/suggest?q=iph"` again and confirm cache invalidation plus refresh behavior works.

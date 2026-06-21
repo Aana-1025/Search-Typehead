@@ -1,36 +1,32 @@
 package com.typeahead.search;
 
-import java.util.Optional;
+import java.time.Instant;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.typeahead.cache.CacheInvalidationService;
+import com.typeahead.batch.BatchWriteService;
+import com.typeahead.batch.SearchEvent;
+import com.typeahead.batch.SearchEventQueue;
 import com.typeahead.dataset.DatasetNormalizer;
-import com.typeahead.dataset.DatasetProperties;
 
 @Service
 public class SearchService {
 
     private static final SearchResponse SEARCHED_RESPONSE = new SearchResponse("Searched");
 
-    private final SearchRepository searchRepository;
-    private final DatasetProperties datasetProperties;
-    private final CacheInvalidationService cacheInvalidationService;
+    private final SearchEventQueue searchEventQueue;
+    private final BatchWriteService batchWriteService;
 
     public SearchService(
-        SearchRepository searchRepository,
-        DatasetProperties datasetProperties,
-        CacheInvalidationService cacheInvalidationService
+        SearchEventQueue searchEventQueue,
+        BatchWriteService batchWriteService
     ) {
-        this.searchRepository = searchRepository;
-        this.datasetProperties = datasetProperties;
-        this.cacheInvalidationService = cacheInvalidationService;
+        this.searchEventQueue = searchEventQueue;
+        this.batchWriteService = batchWriteService;
     }
 
-    @Transactional
     public SearchResponse search(SearchRequest request) {
         if (request == null) {
             throw invalidQuery();
@@ -41,24 +37,14 @@ public class SearchService {
             throw invalidQuery();
         }
 
-        StoredSearchQuery updatedQuery = upsertQuery(request.query(), normalizedQuery);
-        searchRepository.replacePrefixes(updatedQuery, datasetProperties.prefixMaxLength());
-        cacheInvalidationService.invalidateQueryPrefixes(normalizedQuery, datasetProperties.prefixMaxLength());
-
-        return SEARCHED_RESPONSE;
-    }
-
-    private StoredSearchQuery upsertQuery(String rawQuery, String normalizedQuery) {
-        Optional<StoredSearchQuery> existing = searchRepository.findByNormalizedQuery(normalizedQuery);
-        if (existing.isPresent()) {
-            return searchRepository.incrementQuery(existing.get().id());
-        }
-
-        String queryText = rawQuery == null ? normalizedQuery : rawQuery.trim();
+        String queryText = request.query() == null ? normalizedQuery : request.query().trim();
         if (queryText.isEmpty()) {
             queryText = normalizedQuery;
         }
-        return searchRepository.insertNewQuery(queryText, normalizedQuery);
+        int queueSize = searchEventQueue.enqueue(new SearchEvent(queryText, normalizedQuery, Instant.now()));
+        batchWriteService.triggerAsyncFlushIfNeeded(queueSize);
+
+        return SEARCHED_RESPONSE;
     }
 
     private ResponseStatusException invalidQuery() {

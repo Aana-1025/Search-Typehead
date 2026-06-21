@@ -53,3 +53,8 @@ app:
       - cache-node-a
       - cache-node-b
       - cache-node-c
+  batch:
+    enabled: true
+    flush-interval-ms: 5000
+    max-events: 500
+    max-drain-events: 5000

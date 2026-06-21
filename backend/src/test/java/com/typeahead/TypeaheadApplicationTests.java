@@ -12,7 +12,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import com.typeahead.batch.BatchFlushAuditRepository;
+import com.typeahead.batch.BatchWriteRepository;
 import com.typeahead.search.SearchRepository;
 import com.typeahead.suggest.SuggestionRepository;
 
@@ -36,6 +39,15 @@ class TypeaheadApplicationTests {
 
     @MockBean
     private SearchRepository searchRepository;
+
+    @MockBean
+    private BatchWriteRepository batchWriteRepository;
+
+    @MockBean
+    private BatchFlushAuditRepository batchFlushAuditRepository;
+
+    @MockBean
+    private TransactionTemplate transactionTemplate;
 
     @Autowired
     private MockMvc mockMvc;

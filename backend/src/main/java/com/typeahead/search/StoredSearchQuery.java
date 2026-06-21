@@ -1,6 +1,6 @@
 package com.typeahead.search;
 
-record StoredSearchQuery(
+public record StoredSearchQuery(
     long id,
     String queryText,
     String normalizedQuery,
