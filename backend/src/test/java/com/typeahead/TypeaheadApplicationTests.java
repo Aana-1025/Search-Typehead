@@ -18,6 +18,7 @@ import com.typeahead.batch.BatchFlushAuditRepository;
 import com.typeahead.batch.BatchWriteRepository;
 import com.typeahead.search.SearchRepository;
 import com.typeahead.suggest.SuggestionRepository;
+import com.typeahead.trending.TrendingRepository;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -48,6 +49,9 @@ class TypeaheadApplicationTests {
 
     @MockBean
     private TransactionTemplate transactionTemplate;
+
+    @MockBean
+    private TrendingRepository trendingRepository;
 
     @Autowired
     private MockMvc mockMvc;

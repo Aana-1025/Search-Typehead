@@ -1,10 +1,10 @@
 # Search Typeahead System
 
 ## Overview
-This repository contains Milestone 9 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, the React typeahead UI, Redis-backed suggestion caching with consistent hashing, and an aggregated batch write pipeline for search submissions.
+This repository contains Milestone 10 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, the React typeahead UI, Redis-backed suggestion caching with consistent hashing, an aggregated batch write pipeline for search submissions, and recency-aware trending searches.
 
 ## Current Milestone
-Milestone 9 focuses on:
+Milestone 10 focuses on:
 - Java 21 + Spring Boot backend
 - React + Vite + Tailwind frontend
 - Docker Compose with PostgreSQL and Redis
@@ -13,12 +13,13 @@ Milestone 9 focuses on:
 - Local dataset loading into PostgreSQL
 - `GET /suggest?q=<prefix>` backed by Redis cache with PostgreSQL fallback
 - `POST /search` for fast enqueue plus eventual batched PostgreSQL updates
+- `GET /trending` for recency-aware trending searches from PostgreSQL
 - React UI for typing queries, viewing suggestions, and submitting searches
 - `GET /cache/debug?prefix=<prefix>` for cache routing and hit or miss inspection
 - scheduled aggregation into `search_queries`, `query_prefixes`, `query_activity_buckets`, and `batch_flush_audit`
 - `GET /batch/debug` and `POST /batch/flush` for batch inspection and testing
 
-Kafka, OpenSearch, trending APIs, and metrics APIs will be added in later milestones.
+Kafka, OpenSearch, and metrics APIs will be added in later milestones.
 
 ## Project Structure
 ```text
@@ -85,7 +86,7 @@ $env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
 ```
 
 ## Suggest API
-Milestone 9 still checks Redis before PostgreSQL for each normalized prefix. Cached entries use a TTL of 300 seconds and are routed onto logical cache nodes with consistent hashing.
+Milestone 10 still checks Redis before PostgreSQL for each normalized prefix. Cached entries use a TTL of 300 seconds and are routed onto logical cache nodes with consistent hashing.
 
 Logical cache nodes:
 - `cache-node-a`
@@ -224,7 +225,75 @@ Manual flush response example:
 
 ```json
 {
-  "message": "SUCCESS"
+  "status": "SUCCESS",
+  "rawEventCount": 10,
+  "uniqueQueryCount": 1,
+  "dbWriteCount": 1
+}
+```
+
+## Trending API
+Milestone 10 adds a PostgreSQL-backed trending endpoint that reads from `query_activity_buckets` and joins `search_queries` for display text and total counts. This is different from prefix suggestions because trending does not require a prefix and instead ranks the most recent search activity in a selected time window.
+
+Endpoint:
+
+```text
+GET /trending
+```
+
+Query parameters:
+- `window`: optional, one of `1h`, `6h`, `24h`, `7d`
+- `limit`: optional, default `10`, max `20`
+
+Behavior:
+- default window is `24h`
+- default limit is `10`
+- if `limit` is greater than `20`, it is clamped to `20`
+- if `limit` is less than `1`, the API returns HTTP `400`
+- if `window` is invalid, the API returns HTTP `400`
+- source is always `postgres` in this milestone
+
+Ranking:
+- sum `query_activity_buckets.search_count` within the selected window
+- rank by `recentCount` descending
+- tie-break by `totalCount` descending
+- tie-break by query text ascending
+- `score` currently equals `recentCount` and represents recent search activity
+
+Examples:
+
+```bash
+curl "http://localhost:8082/trending"
+curl "http://localhost:8082/trending?window=24h&limit=10"
+curl "http://localhost:8082/trending?window=1h&limit=5"
+```
+
+Example response:
+
+```json
+{
+  "window": "24h",
+  "count": 1,
+  "items": [
+    {
+      "query": "iphone",
+      "totalCount": 249948,
+      "recentCount": 620,
+      "score": 620.0
+    }
+  ],
+  "source": "postgres"
+}
+```
+
+Empty-window response:
+
+```json
+{
+  "window": "24h",
+  "count": 0,
+  "items": [],
+  "source": "postgres"
 }
 ```
 
@@ -335,3 +404,20 @@ curl "http://localhost:8082/suggest?q=iph"
 docker exec -it typeahead-redis redis-cli KEYS "suggest:*:v1:count:iph"
 docker exec -it typeahead-redis redis-cli TTL "suggest:<ownerNode>:v1:count:iph"
 ```
+
+11. Verify trending with a fresh query:
+
+```powershell
+1..5 | ForEach-Object {
+  Invoke-RestMethod `
+    -Method POST `
+    -Uri "http://localhost:8082/search" `
+    -ContentType "application/json" `
+    -Body '{"query":"fresh trending query"}'
+}
+Invoke-RestMethod -Method POST -Uri "http://localhost:8082/batch/flush"
+Invoke-RestMethod -Uri "http://localhost:8082/trending"
+Invoke-RestMethod -Uri "http://localhost:8082/trending?window=24h&limit=10"
+```
+
+12. Confirm `fresh trending query` appears with `recentCount` matching the flushed count and that `/suggest?q=iph` still returns postgres first and cache second.
