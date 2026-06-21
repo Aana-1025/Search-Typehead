@@ -19,3 +19,6 @@ tmp-tests/
 .agents/
 .codex/
 docs/build-log.md
+
+__pycache__/
+*.pyc

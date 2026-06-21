@@ -1,14 +1,15 @@
 # Search Typeahead System
 
 ## Overview
-This repository contains Milestone 2 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, a minimal backend health endpoint, and the first Flyway-managed database schema.
+This repository contains Milestone 3 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, a minimal backend health endpoint, the first Flyway-managed database schema, and a synthetic dataset generator for search-query testing.
 
 ## Current Milestone
-Milestone 2 focuses on:
+Milestone 3 focuses on:
 - Java 21 + Spring Boot backend
 - React + Vite + Tailwind frontend
 - Docker Compose with PostgreSQL only
 - Flyway-based PostgreSQL schema setup
+- Synthetic dataset generation for realistic search queries
 
 Redis, Kafka, OpenSearch, APIs beyond the basic health check, batch writes, and trending features will be added in later milestones.
 
@@ -44,6 +45,13 @@ Use these commands to verify the schema in PostgreSQL after the backend starts:
 ```bash
 docker compose exec postgres psql -U typeahead -d typeahead -c "\dt"
 docker compose exec postgres psql -U typeahead -d typeahead -c "\d search_queries"
+```
+
+## Dataset Generation
+Generate the Milestone 3 synthetic dataset from the project root with:
+
+```bash
+python data/generate_dataset.py --rows 100000 --output data/queries.csv
 ```
 
 ## Verification Targets
