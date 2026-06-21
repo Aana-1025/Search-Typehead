@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: typeahead
       POSTGRES_PASSWORD: typeahead
     ports:
-      - "5432:5432"
+      - "55432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U typeahead -d typeahead"]
       interval: 10s
