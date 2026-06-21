@@ -31,3 +31,10 @@ management:
     web:
       exposure:
         include: health,info
+
+app:
+  dataset:
+    load: false
+    path: ../data/queries.csv
+    batch-size: 1000
+    prefix-max-length: 50

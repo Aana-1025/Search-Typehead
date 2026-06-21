@@ -54,6 +54,14 @@ Generate the Milestone 3 synthetic dataset from the project root with:
 python data/generate_dataset.py --rows 100000 --output data/queries.csv
 ```
 
+## Dataset Loading
+Load the generated dataset into `search_queries` and `query_prefixes` from the `backend` folder with:
+
+```powershell
+$env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--app.dataset.load=true --app.dataset.path=../data/queries.csv"
+```
+
 ## Verification Targets
 - PostgreSQL runs on `localhost:55432`
 - Backend runs on `http://localhost:8080`
