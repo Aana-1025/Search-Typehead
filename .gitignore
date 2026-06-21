@@ -1,0 +1,21 @@
+# Backend
+backend/target/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+Thumbs.db
+Desktop.ini
+
+# Environment files
+.env
+tmp-tests/
+*.log
+.agents/
+.codex/
+docs/build-log.md
