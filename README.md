@@ -1,17 +1,19 @@
 # Search Typeahead System
 
 ## Overview
-This repository contains Milestone 3 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, a minimal backend health endpoint, the first Flyway-managed database schema, and a synthetic dataset generator for search-query testing.
+This repository contains Milestone 5 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, and the first PostgreSQL-backed typeahead suggestion API.
 
 ## Current Milestone
-Milestone 3 focuses on:
+Milestone 5 focuses on:
 - Java 21 + Spring Boot backend
 - React + Vite + Tailwind frontend
 - Docker Compose with PostgreSQL only
 - Flyway-based PostgreSQL schema setup
 - Synthetic dataset generation for realistic search queries
+- Local dataset loading into PostgreSQL
+- `GET /suggest?q=<prefix>` backed by PostgreSQL `query_prefixes`
 
-Redis, Kafka, OpenSearch, APIs beyond the basic health check, batch writes, and trending features will be added in later milestones.
+Redis, Kafka, OpenSearch, `/search`, batch writes, trending features, and metrics APIs will be added in later milestones.
 
 ## Project Structure
 ```text
@@ -71,3 +73,35 @@ $env:JAVA_TOOL_OPTIONS="-Duser.timezone=UTC"
 ```json
 {"status":"UP","service":"search-typeahead-backend"}
 ```
+
+## Suggest API
+Use the backend suggestion endpoint after the dataset has already been loaded into PostgreSQL:
+
+```bash
+curl "http://localhost:8080/suggest?q=iph"
+curl "http://localhost:8080/suggest?q=IPH"
+curl "http://localhost:8080/suggest?q=spring%20boot"
+curl "http://localhost:8080/suggest"
+```
+
+Example response:
+
+```json
+{
+  "prefix": "iph",
+  "count": 1,
+  "suggestions": [
+    {
+      "query": "iphone",
+      "count": 249943
+    }
+  ],
+  "source": "postgres"
+}
+```
+
+Edge-case behavior:
+- Missing `q` returns HTTP 200 with empty suggestions.
+- Empty or whitespace-only `q` returns HTTP 200 with empty suggestions.
+- Mixed-case input is normalized before lookup.
+- No-match prefixes return HTTP 200 with empty suggestions.
