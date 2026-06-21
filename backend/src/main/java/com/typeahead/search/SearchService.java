@@ -10,6 +10,7 @@ import com.typeahead.batch.BatchWriteService;
 import com.typeahead.batch.SearchEvent;
 import com.typeahead.batch.SearchEventQueue;
 import com.typeahead.dataset.DatasetNormalizer;
+import com.typeahead.metrics.MetricsCounters;
 
 @Service
 public class SearchService {
@@ -18,13 +19,16 @@ public class SearchService {
 
     private final SearchEventQueue searchEventQueue;
     private final BatchWriteService batchWriteService;
+    private final MetricsCounters metricsCounters;
 
     public SearchService(
         SearchEventQueue searchEventQueue,
-        BatchWriteService batchWriteService
+        BatchWriteService batchWriteService,
+        MetricsCounters metricsCounters
     ) {
         this.searchEventQueue = searchEventQueue;
         this.batchWriteService = batchWriteService;
+        this.metricsCounters = metricsCounters;
     }
 
     public SearchResponse search(SearchRequest request) {
@@ -41,7 +45,9 @@ public class SearchService {
         if (queryText.isEmpty()) {
             queryText = normalizedQuery;
         }
+        metricsCounters.incrementSearchesAccepted();
         int queueSize = searchEventQueue.enqueue(new SearchEvent(queryText, normalizedQuery, Instant.now()));
+        metricsCounters.incrementSearchesQueued();
         batchWriteService.triggerAsyncFlushIfNeeded(queueSize);
 
         return SEARCHED_RESPONSE;

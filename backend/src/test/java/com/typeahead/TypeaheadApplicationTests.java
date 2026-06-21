@@ -16,6 +16,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.typeahead.batch.BatchFlushAuditRepository;
 import com.typeahead.batch.BatchWriteRepository;
+import com.typeahead.metrics.PostgresMetricsRepository;
 import com.typeahead.search.SearchRepository;
 import com.typeahead.suggest.SuggestionRepository;
 import com.typeahead.trending.TrendingRepository;
@@ -52,6 +53,9 @@ class TypeaheadApplicationTests {
 
     @MockBean
     private TrendingRepository trendingRepository;
+
+    @MockBean
+    private PostgresMetricsRepository postgresMetricsRepository;
 
     @Autowired
     private MockMvc mockMvc;

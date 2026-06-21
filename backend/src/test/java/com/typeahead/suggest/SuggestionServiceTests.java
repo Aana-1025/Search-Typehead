@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.typeahead.cache.SuggestionCacheService;
+import com.typeahead.metrics.MetricsCounters;
 
 @ExtendWith(MockitoExtension.class)
 class SuggestionServiceTests {
@@ -23,9 +24,16 @@ class SuggestionServiceTests {
     @Mock
     private SuggestionCacheService suggestionCacheService;
 
+    @Mock
+    private MetricsCounters metricsCounters;
+
     @Test
     void returnsEmptyResponseForMissingPrefix() {
-        SuggestionService suggestionService = new SuggestionService(suggestionRepository, suggestionCacheService);
+        SuggestionService suggestionService = new SuggestionService(
+            suggestionRepository,
+            suggestionCacheService,
+            metricsCounters
+        );
 
         SuggestionResponse response = suggestionService.suggest(null);
 
@@ -38,7 +46,11 @@ class SuggestionServiceTests {
 
     @Test
     void returnsCachedSuggestionsWhenRedisHasPrefix() {
-        SuggestionService suggestionService = new SuggestionService(suggestionRepository, suggestionCacheService);
+        SuggestionService suggestionService = new SuggestionService(
+            suggestionRepository,
+            suggestionCacheService,
+            metricsCounters
+        );
         SuggestionResponse cached = new SuggestionResponse(
             "iph",
             1,
@@ -51,13 +63,19 @@ class SuggestionServiceTests {
         SuggestionResponse response = suggestionService.suggest("iph");
 
         assertThat(response).isEqualTo(cached);
+        verify(metricsCounters).incrementSuggestionRequests();
+        verify(metricsCounters).incrementSuggestionCacheHits();
         verify(suggestionCacheService).getIfPresent("iph");
         verifyNoInteractions(suggestionRepository);
     }
 
     @Test
     void normalizesMixedCaseAndWhitespaceBeforeLookup() {
-        SuggestionService suggestionService = new SuggestionService(suggestionRepository, suggestionCacheService);
+        SuggestionService suggestionService = new SuggestionService(
+            suggestionRepository,
+            suggestionCacheService,
+            metricsCounters
+        );
         List<SuggestionItem> suggestions = List.of(new SuggestionItem("iphone 15", 249943L));
         SuggestionResponse postgresResponse = new SuggestionResponse("iph", 1, suggestions, "postgres");
 
@@ -71,6 +89,9 @@ class SuggestionServiceTests {
         assertThat(response.count()).isEqualTo(1);
         assertThat(response.suggestions()).containsExactlyElementsOf(suggestions);
         assertThat(response.source()).isEqualTo("postgres");
+        verify(metricsCounters).incrementSuggestionRequests();
+        verify(metricsCounters).incrementSuggestionCacheMisses();
+        verify(metricsCounters).incrementSuggestionPostgresReads();
         verify(suggestionCacheService).getIfPresent("iph");
         verify(suggestionRepository).findSuggestions("iph", 10);
         verify(suggestionCacheService).cacheResponse("iph", suggestions, "postgres");
@@ -78,7 +99,11 @@ class SuggestionServiceTests {
 
     @Test
     void returnsEmptyResponseForNoMatches() {
-        SuggestionService suggestionService = new SuggestionService(suggestionRepository, suggestionCacheService);
+        SuggestionService suggestionService = new SuggestionService(
+            suggestionRepository,
+            suggestionCacheService,
+            metricsCounters
+        );
         SuggestionResponse postgresResponse = new SuggestionResponse("zzzzzz", 0, List.of(), "postgres");
 
         when(suggestionCacheService.getIfPresent("zzzzzz")).thenReturn(null);
@@ -91,5 +116,8 @@ class SuggestionServiceTests {
         assertThat(response.count()).isZero();
         assertThat(response.suggestions()).isEmpty();
         assertThat(response.source()).isEqualTo("postgres");
+        verify(metricsCounters).incrementSuggestionRequests();
+        verify(metricsCounters).incrementSuggestionCacheMisses();
+        verify(metricsCounters).incrementSuggestionPostgresReads();
     }
 }

@@ -1,10 +1,10 @@
 # Search Typeahead System
 
 ## Overview
-This repository contains Milestone 10 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, the React typeahead UI, Redis-backed suggestion caching with consistent hashing, an aggregated batch write pipeline for search submissions, and recency-aware trending searches.
+This repository contains Milestone 11 of a high-level design assignment project for a Search Typeahead System. The current scope includes the initial project skeleton, local development workflow, PostgreSQL infrastructure, Flyway-managed schema setup, synthetic dataset generation, local dataset loading, a PostgreSQL-backed typeahead suggestion API, the React typeahead UI, Redis-backed suggestion caching with consistent hashing, an aggregated batch write pipeline for search submissions, recency-aware trending searches, and an assignment-friendly metrics summary API.
 
 ## Current Milestone
-Milestone 10 focuses on:
+Milestone 11 focuses on:
 - Java 21 + Spring Boot backend
 - React + Vite + Tailwind frontend
 - Docker Compose with PostgreSQL and Redis
@@ -14,12 +14,14 @@ Milestone 10 focuses on:
 - `GET /suggest?q=<prefix>` backed by Redis cache with PostgreSQL fallback
 - `POST /search` for fast enqueue plus eventual batched PostgreSQL updates
 - `GET /trending` for recency-aware trending searches from PostgreSQL
+- `GET /metrics/summary` for runtime plus durable summary metrics
 - React UI for typing queries, viewing suggestions, and submitting searches
 - `GET /cache/debug?prefix=<prefix>` for cache routing and hit or miss inspection
 - scheduled aggregation into `search_queries`, `query_prefixes`, `query_activity_buckets`, and `batch_flush_audit`
 - `GET /batch/debug` and `POST /batch/flush` for batch inspection and testing
+- `scripts/perf-smoke.ps1` for lightweight performance evidence
 
-Kafka, OpenSearch, and metrics APIs will be added in later milestones.
+Kafka, OpenSearch, Prometheus, and Grafana will be added in later milestones.
 
 ## Project Structure
 ```text
@@ -233,7 +235,7 @@ Manual flush response example:
 ```
 
 ## Trending API
-Milestone 10 adds a PostgreSQL-backed trending endpoint that reads from `query_activity_buckets` and joins `search_queries` for display text and total counts. This is different from prefix suggestions because trending does not require a prefix and instead ranks the most recent search activity in a selected time window.
+Milestone 11 keeps the PostgreSQL-backed trending endpoint that reads from `query_activity_buckets` and joins `search_queries` for display text and total counts. This is different from prefix suggestions because trending does not require a prefix and instead ranks the most recent search activity in a selected time window.
 
 Endpoint:
 
@@ -296,6 +298,91 @@ Empty-window response:
   "source": "postgres"
 }
 ```
+
+## Metrics Summary API
+Milestone 11 adds a lightweight metrics summary endpoint that combines in-memory runtime counters with durable PostgreSQL aggregate metrics.
+
+Endpoint:
+
+```text
+GET /metrics/summary
+```
+
+Runtime counters:
+- suggestion request count
+- suggestion cache hits
+- suggestion cache misses
+- suggestion PostgreSQL reads
+- accepted searches
+- queued searches
+- trending requests
+
+Durable PostgreSQL metrics:
+- total `search_queries` row count
+- total `query_prefixes` row count
+- total `query_activity_buckets` row count
+- total `batch_flush_audit` row count
+- successful batch flush count
+- total raw events processed
+- total unique query writes
+- estimated DB writes avoided
+
+Important behavior:
+- runtime counters reset when the application restarts
+- durable batch and database metrics come from PostgreSQL and survive restarts
+- cache hit rate is numeric
+- if there are zero suggestion requests, cache hit rate is `0.0`
+- estimated DB writes avoided is `rawEventsProcessed - uniqueQueryWrites`
+
+Example response:
+
+```json
+{
+  "suggestions": {
+    "requests": 4,
+    "cacheHits": 2,
+    "cacheMisses": 2,
+    "cacheHitRate": 0.5,
+    "postgresReads": 2
+  },
+  "searches": {
+    "accepted": 10,
+    "queued": 10
+  },
+  "batchWrites": {
+    "flushes": 3,
+    "rawEventsProcessed": 20,
+    "uniqueQueryWrites": 5,
+    "estimatedDbWritesAvoided": 15
+  },
+  "trending": {
+    "requests": 2
+  },
+  "database": {
+    "searchQueries": 100000,
+    "queryPrefixes": 4369342,
+    "activityBuckets": 3,
+    "batchAuditRows": 3
+  },
+  "source": "application"
+}
+```
+
+## Performance Evidence
+Use the lightweight PowerShell helper for a quick smoke run against a locally running backend:
+
+```powershell
+.\scripts\perf-smoke.ps1
+```
+
+The script:
+- warms `/suggest` for `iph`
+- warms `/suggest` for `spring boot`
+- submits a few `/search` requests
+- calls `/batch/flush`
+- calls `/trending`
+- calls `/metrics/summary`
+- prints simple timing output
 
 ## Cache Debug API
 Use the cache debug endpoint to inspect routing, keys, and hit or miss status without changing suggestion behavior.
@@ -421,3 +508,19 @@ Invoke-RestMethod -Uri "http://localhost:8082/trending?window=24h&limit=10"
 ```
 
 12. Confirm `fresh trending query` appears with `recentCount` matching the flushed count and that `/suggest?q=iph` still returns postgres first and cache second.
+13. Verify metrics summary:
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8082/metrics/summary"
+.\scripts\perf-smoke.ps1
+```
+
+14. Confirm:
+- suggestion requests increased
+- cache hits are greater than 0
+- cache misses are greater than 0
+- cache hit rate is numeric
+- batch raw events processed increased
+- unique query writes increased
+- estimated DB writes avoided is visible
+- database table counts are visible

@@ -22,11 +22,14 @@ class TrendingServiceTests {
     @Mock
     private TrendingRepository trendingRepository;
 
+    @Mock
+    private com.typeahead.metrics.MetricsCounters metricsCounters;
+
     private final Clock fixedClock = Clock.fixed(Instant.parse("2026-06-21T16:00:00Z"), ZoneOffset.UTC);
 
     @Test
     void defaultTrendingRequestUses24hAndLimit10() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-20T16:00:00Z"))).thenReturn(List.of());
 
         TrendingResponse response = trendingService.trending(null, null);
@@ -38,7 +41,7 @@ class TrendingServiceTests {
 
     @Test
     void customWindowWorks() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-21T10:00:00Z"))).thenReturn(List.of());
 
         TrendingResponse response = trendingService.trending("6h", 10);
@@ -49,7 +52,7 @@ class TrendingServiceTests {
 
     @Test
     void customLimitWorks() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-20T16:00:00Z"))).thenReturn(List.of(
             new TrendingItem("a", 10, 5, 5.0),
             new TrendingItem("b", 9, 4, 4.0),
@@ -64,7 +67,7 @@ class TrendingServiceTests {
 
     @Test
     void invalidWindowReturns400() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
 
         assertThatThrownBy(() -> trendingService.trending("48h", 10))
             .isInstanceOf(ResponseStatusException.class)
@@ -74,7 +77,7 @@ class TrendingServiceTests {
 
     @Test
     void invalidLimitReturns400() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
 
         assertThatThrownBy(() -> trendingService.trending("24h", 0))
             .isInstanceOf(ResponseStatusException.class)
@@ -84,7 +87,7 @@ class TrendingServiceTests {
 
     @Test
     void rankingUsesRecentCountFirst() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-20T16:00:00Z"))).thenReturn(List.of(
             new TrendingItem("zebra", 100, 5, 5.0),
             new TrendingItem("alpha", 150, 5, 5.0),
@@ -95,11 +98,12 @@ class TrendingServiceTests {
 
         assertThat(response.items()).extracting(TrendingItem::query)
             .containsExactly("iphone", "alpha", "zebra");
+        verify(metricsCounters).incrementTrendingRequests();
     }
 
     @Test
     void serviceReturnsMax10ByDefault() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-20T16:00:00Z"))).thenReturn(List.of(
             new TrendingItem("q01", 100, 100, 100.0),
             new TrendingItem("q02", 99, 99, 99.0),
@@ -122,7 +126,7 @@ class TrendingServiceTests {
 
     @Test
     void limitGreaterThan20IsClamped() {
-        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock);
+        TrendingService trendingService = new TrendingService(trendingRepository, fixedClock, metricsCounters);
         when(trendingRepository.findTrendingSince(Instant.parse("2026-06-20T16:00:00Z"))).thenReturn(List.of(
             new TrendingItem("one", 1, 1, 1.0)
         ));

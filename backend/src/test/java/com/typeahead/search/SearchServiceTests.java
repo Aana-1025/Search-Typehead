@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.typeahead.batch.BatchWriteService;
 import com.typeahead.batch.SearchEvent;
 import com.typeahead.batch.SearchEventQueue;
+import com.typeahead.metrics.MetricsCounters;
 
 @ExtendWith(MockitoExtension.class)
 class SearchServiceTests {
@@ -28,11 +29,15 @@ class SearchServiceTests {
     @Mock
     private BatchWriteService batchWriteService;
 
+    @Mock
+    private MetricsCounters metricsCounters;
+
     @Test
     void rejectsMissingQueryBody() {
         SearchService searchService = new SearchService(
             searchEventQueue,
-            batchWriteService
+            batchWriteService,
+            metricsCounters
         );
 
         assertThatThrownBy(() -> searchService.search(null))
@@ -44,7 +49,8 @@ class SearchServiceTests {
     void rejectsBlankQuery() {
         SearchService searchService = new SearchService(
             searchEventQueue,
-            batchWriteService
+            batchWriteService,
+            metricsCounters
         );
 
         assertThatThrownBy(() -> searchService.search(new SearchRequest("   ")))
@@ -58,7 +64,8 @@ class SearchServiceTests {
     void enqueuesNormalizedSearchEventAndReturnsSearched() {
         SearchService searchService = new SearchService(
             searchEventQueue,
-            batchWriteService
+            batchWriteService,
+            metricsCounters
         );
         when(searchEventQueue.enqueue(any(SearchEvent.class))).thenReturn(1);
 
@@ -70,6 +77,8 @@ class SearchServiceTests {
                 searchEvent.normalizedQuery().equals("iphone") &&
                 searchEvent.createdAt() != null
         ));
+        verify(metricsCounters).incrementSearchesAccepted();
+        verify(metricsCounters).incrementSearchesQueued();
         verify(batchWriteService).triggerAsyncFlushIfNeeded(1);
         verifyNoMoreInteractions(batchWriteService);
     }

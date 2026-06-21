@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.typeahead.metrics.MetricsCounters;
+
 @Service
 public class TrendingService {
 
@@ -23,15 +25,17 @@ public class TrendingService {
 
     private final TrendingRepository trendingRepository;
     private final Clock clock;
+    private final MetricsCounters metricsCounters;
 
     @Autowired
-    public TrendingService(TrendingRepository trendingRepository) {
-        this(trendingRepository, Clock.systemUTC());
+    public TrendingService(TrendingRepository trendingRepository, MetricsCounters metricsCounters) {
+        this(trendingRepository, Clock.systemUTC(), metricsCounters);
     }
 
-    TrendingService(TrendingRepository trendingRepository, Clock clock) {
+    TrendingService(TrendingRepository trendingRepository, Clock clock, MetricsCounters metricsCounters) {
         this.trendingRepository = trendingRepository;
         this.clock = clock;
+        this.metricsCounters = metricsCounters;
     }
 
     public TrendingResponse trending(String rawWindow, Integer rawLimit) {
@@ -50,6 +54,7 @@ public class TrendingService {
             ))
             .toList();
 
+        metricsCounters.incrementTrendingRequests();
         return new TrendingResponse(trendingWindow.apiValue(), items.size(), items, SOURCE);
     }
 
