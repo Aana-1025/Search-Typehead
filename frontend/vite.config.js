@@ -13,6 +13,22 @@ export default defineConfig({
       "/search": {
         target: "http://localhost:8082",
         changeOrigin: true
+      },
+      "/trending": {
+        target: "http://localhost:8082",
+        changeOrigin: true
+      },
+      "/metrics": {
+        target: "http://localhost:8082",
+        changeOrigin: true
+      },
+      "/cache": {
+        target: "http://localhost:8082",
+        changeOrigin: true
+      },
+      "/batch": {
+        target: "http://localhost:8082",
+        changeOrigin: true
       }
     }
   }

@@ -1,0 +1,15 @@
+﻿{
+    "enabled":  true,
+    "prefix":  "iph",
+    "mode":  "count",
+    "cacheKey":  "suggest:v1:count:iph",
+    "redisKey":  "suggest:cache-node-b:v1:count:iph",
+    "ownerNode":  "cache-node-b",
+    "logicalNodes":  [
+                         "cache-node-a",
+                         "cache-node-b",
+                         "cache-node-c"
+                     ],
+    "status":  "MISS",
+    "ttlSeconds":  300
+}

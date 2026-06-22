@@ -1,0 +1,29 @@
+﻿{
+    "suggestions":  {
+                        "requests":  312,
+                        "cacheHits":  84,
+                        "cacheMisses":  228,
+                        "cacheHitRate":  0.2692307692307692,
+                        "postgresReads":  228
+                    },
+    "searches":  {
+                     "accepted":  61,
+                     "queued":  61
+                 },
+    "batchWrites":  {
+                        "flushes":  44,
+                        "rawEventsProcessed":  73,
+                        "uniqueQueryWrites":  44,
+                        "estimatedDbWritesAvoided":  29
+                    },
+    "trending":  {
+                     "requests":  129
+                 },
+    "database":  {
+                     "searchQueries":  100020,
+                     "queryPrefixes":  4369591,
+                     "activityBuckets":  30,
+                     "batchAuditRows":  44
+                 },
+    "source":  "application"
+}

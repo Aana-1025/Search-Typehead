@@ -1,0 +1,37 @@
+﻿{
+    "window":  "24h",
+    "count":  5,
+    "items":  [
+                  {
+                      "query":  "batch test iphone",
+                      "totalCount":  620,
+                      "recentCount":  620,
+                      "score":  620.0
+                  },
+                  {
+                      "query":  "metrics test iphone",
+                      "totalCount":  10,
+                      "recentCount":  10,
+                      "score":  10.0
+                  },
+                  {
+                      "query":  "iphone",
+                      "totalCount":  249955,
+                      "recentCount":  7,
+                      "score":  7.0
+                  },
+                  {
+                      "query":  "trending iphone test",
+                      "totalCount":  7,
+                      "recentCount":  7,
+                      "score":  7.0
+                  },
+                  {
+                      "query":  "batch audit test iphone",
+                      "totalCount":  5,
+                      "recentCount":  5,
+                      "score":  5.0
+                  }
+              ],
+    "source":  "postgres"
+}
