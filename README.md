@@ -36,7 +36,7 @@ Future production upgrades such as OpenSearch, Kafka, Redis Cluster, Prometheus,
 - Search submission with `POST /search`
 - Search submission through the Search button and Enter key
 - Loading, error, empty-query, and no-results UI states
-- Basic keyboard-friendly suggestion navigation and support
+- Keyboard-friendly search submission through the Enter key
 - Display of dummy search response after submission
 - Batch-written count updates through an in-memory queue
 - Redis cache checked before PostgreSQL
@@ -119,13 +119,36 @@ Example proof files used in the documentation:
 - [docs/proof/db-prefix-count.txt](docs/proof/db-prefix-count.txt)
 
 ## UI Screenshots
-Saved screenshots:
-- [01-home-trending](docs/screenshots/01-home-trending.png)
-- [02-iph-suggestions](docs/screenshots/02-iph-suggestions.png)
-- [03-spring-boot-suggestions](docs/screenshots/03-spring-boot-suggestions.png)
-- [06-fresh-query-no-results](docs/screenshots/06-fresh-query-no-results.png)
-- [07-fresh-query-search-response](docs/screenshots/07-fresh-query-search-response.png)
-- [08-fresh-query-added-suggestion](docs/screenshots/08-fresh-query-added-suggestion.png)
+
+### 1. Home Page with Trending Searches
+This screen shows the final pastel search UI with the Trending Searches section. Trending results are generated from recent search activity.
+
+![Home page with trending searches](docs/screenshots/01-home-trending.png)
+
+### 2. Prefix Suggestions for `iph`
+This screen shows typeahead suggestions for the prefix `iph`. The system returns ranked suggestions that start with the typed prefix.
+
+![Suggestions for iph](docs/screenshots/02-iph-suggestions.png)
+
+### 3. Prefix Suggestions for `spring boot`
+This screen shows suggestions for a multi-word prefix. It proves that the system supports normalized prefix matching beyond single-word queries.
+
+![Suggestions for spring boot](docs/screenshots/03-spring-boot-suggestions.png)
+
+### 4. Fresh Query Initially Has No Suggestions
+This screen shows a fresh query, `ppppp`, before it exists in the suggestion dataset. The UI correctly displays the no-results state.
+
+![Fresh query no results](docs/screenshots/06-fresh-query-no-results.png)
+
+### 5. Search Submission Response
+After clicking the Search button for `ppppp`, the UI displays `Response: Searched`. This proves that the search submission flow is working.
+
+![Fresh query search response](docs/screenshots/07-fresh-query-search-response.png)
+
+### 6. Fresh Query Added as Suggestion
+After the batch update and refresh, the fresh query `ppppp` appears as a suggestion with count `1`. This proves eventual count update and prefix-table refresh.
+
+![Fresh query added suggestion](docs/screenshots/08-fresh-query-added-suggestion.png)
 
 The fresh-query sequence proves:
 - the new query initially had no suggestions
